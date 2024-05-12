@@ -15,8 +15,7 @@ const redisClient = async () => {
       // Retrieve the value of a key from the Redis server
       const result = await client.get("foo");
 
-      // Log the Redis client object
-      console.log(client);
+      return client;
     }
   } catch (error: any) {
     // Log an error message if the Redis connection fails

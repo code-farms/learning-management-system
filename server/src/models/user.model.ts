@@ -1,6 +1,6 @@
 import mongoose, { Document } from "mongoose";
 import bcrypt from "bcryptjs";
-import { timeStamp } from "console";
+import jwt from "jsonwebtoken";
 
 const emailRegex: RegExp =
   /^(([^<>()[\]\\.,;:\s@"]+(\.[^<>()[\]\\.,;:\s@"]+)*)|.(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/;
@@ -22,13 +22,16 @@ interface UserInterface extends Document {
    * @returns A Promise that resolves to a boolean indicating whether the passwords match.
    */
   comparePassword: (password: string) => Promise<boolean>;
+  refreshToken: string;
+  generateAccessToken: () => string;
+  generateRefreshToken: () => string;
 }
 
 const userSchema = new mongoose.Schema<UserInterface>(
   {
     name: {
       type: String,
-      required: [true, "Please enter your name"],
+      required: [true, "Please enter your full name"],
     },
     email: {
       type: String,
@@ -69,6 +72,9 @@ const userSchema = new mongoose.Schema<UserInterface>(
         courseid: String,
       },
     ],
+    refreshToken: {
+      type: String,
+    },
   },
   { timestamps: true }
 );
@@ -76,7 +82,6 @@ const userSchema = new mongoose.Schema<UserInterface>(
 /**
  * Middleware function that is executed before saving a user document.
  * It hashes the password if it has been modified.
- * @param next - The next function to be called in the middleware chain.
  */
 userSchema.pre<UserInterface>("save", async function (next) {
   if (!this.isModified("password")) {
@@ -95,6 +100,28 @@ userSchema.methods.comparePassword = async function (
   password: string
 ): Promise<boolean> {
   return await bcrypt.compare(password, this.password);
+};
+
+// Generate access token
+userSchema.methods.generateAccessToken = function () {
+  return jwt.sign(
+    { _id: this._id, email: this.email },
+    process.env.ACCESS_TOKEN_SECRET as string,
+    {
+      expiresIn: process.env.ACCESS_TOKEN_EXPIRY,
+    }
+  );
+};
+
+// Generate refresh token
+userSchema.methods.generateRefreshToken = function () {
+  return jwt.sign(
+    { _id: this._id },
+    process.env.REFRESH_TOKEN_SECRET as string,
+    {
+      expiresIn: process.env.REFRESH_TOKEN_EXPIRY,
+    }
+  );
 };
 
 const User = mongoose.model<UserInterface>("User", userSchema);

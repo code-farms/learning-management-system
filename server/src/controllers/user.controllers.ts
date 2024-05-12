@@ -1,11 +1,10 @@
 import { NextFunction, Request, Response } from "express";
 import asyncHandler from "../utils/asyncHandler";
 import ApiError from "../utils/apiError";
-import { User } from "../models/user.model";
+import { User, UserInterface } from "../models/user.model";
 import jwt, { Secret } from "jsonwebtoken";
-import path from "path";
-import ejs from "ejs";
-import sendEmail from "../utils/sendMail";
+import { ApiResponse } from "../utils/apiResponse";
+import { sendToken } from "../utils/jwt";
 
 interface RegisterUserInterface {
   name: string;
@@ -14,66 +13,33 @@ interface RegisterUserInterface {
   avatar?: string;
 }
 
-const registerUser = asyncHandler(
-  async (req: Request, res: Response, next: NextFunction) => {
-    const { name, email, password } = req.body;
-
-    /**
-     * Checks if any of the given fields are empty or contain only whitespace characters.
-     * If any field is empty or contains only whitespace characters, throws an ApiError with status code 400 and a corresponding error message.
-     */
-    if ([name, email, password].some((fields) => fields?.trim() === "")) {
-      throw new ApiError(400, "Please fill all fields");
-    }
-
-    const isUserExists = await User.findOne({ email });
-
-    if (isUserExists) {
-      throw new ApiError(409, "User already exists");
-    }
-
-    const user: RegisterUserInterface = {
-      name,
-      email,
-      password,
-    };
-
-    const activationToken = createActivationToken(user);
-    const activationCode = activationToken.activationCode;
-    const data = { user: { user: user.name }, activationCode };
-    const html = await ejs.renderFile(
-      path.join(__dirname, "./../mails/activation-mail.ejs"),
-      data
-    );
-
-    try {
-      await sendEmail({
-        email: user.email,
-        subject: "Activate your account",
-        template: "activation-mail.ejs",
-        data,
-      });
-
-      res.status(201).json({
-        success: true,
-        message: `Please check your email : ${user.email}  to activate your account`,
-        activationToken: activationToken.token,
-      });
-    } catch (error: any) {
-      return next(new ApiError(400, error.message));
-    }
-  }
-);
-
 interface ActivationTokenInterface {
   token: string;
   activationCode: string;
 }
 
+interface ActivationRequestInterface {
+  activation_token: string;
+  activation_code: string;
+}
+
+interface LoginInterface {
+  email: string;
+  password: string;
+}
+
+/**
+ * Creates an activation token for a registered user.
+ * @param user - The user object to be included in the token.
+ * @returns An object containing the token and activation-code/OTP.
+ */
 const createActivationToken = (
   user: RegisterUserInterface
 ): ActivationTokenInterface => {
+  // Generate a random activation code/OTP.
   const activationCode = Math.floor(1000 + Math.random() * 9000).toString();
+
+  // Create an activation token with the user and activation-code/OTP.
   const token = jwt.sign(
     { user, activationCode },
     process.env.ACTIVATION_SECRET as Secret,
@@ -82,21 +48,80 @@ const createActivationToken = (
     }
   );
 
+  // Return the token and activation-code/OTP.
   return { token, activationCode };
 };
 
-// const avatarLocalPath = (
-//   req.files as { [fieldname: string]: Express.Multer.File[] }
-// )?.avatar?.[0]?.path;
+// Ueser Registration Controller
 
-// const user = await User.create({ name, email, password });
+const registerUser = asyncHandler(
+  async (req: Request, res: Response, next: NextFunction) => {
+    const { name, email, password } = req.body;
 
-// const createdUser = await User.findById(user._id).select(
-//   "-password -refreshToken"
-// );
+    // Check whether all fields are filled or not.
+    if ([name, email, password].some((fields) => fields?.trim() === "")) {
+      throw new ApiError(400, "Please fill all fields");
+    }
 
-// if (!createdUser) {
-//   throw new ApiError(500, "Something went wrong while creating a new user");
-// }
+    // Check whether user is already registered or not.
+    const isUserExists = await User.findOne({ email });
 
-export { registerUser };
+    // If user is already registered then throw error.
+    if (isUserExists) {
+      throw new ApiError(409, `User with email ${email} already exists`);
+    }
+
+    // Create a new user in database.
+    const createdUser = await User.create({ name, email, password });
+
+    // Check whether user is created or not.
+    if (!createdUser) {
+      throw new ApiError(500, "Something went wrong while registering a user");
+    }
+
+    // Send the response.
+    res
+      .status(201)
+      .json(
+        new ApiResponse(
+          201,
+          true,
+          `User has register successfully.`,
+          createdUser
+        )
+      );
+  }
+);
+
+const loginUser = asyncHandler(
+  async (req: Request, res: Response, next: NextFunction) => {
+    const { email, password } = req.body;
+
+    // Check whether all fields are filled or not.
+    if ([email, password].some((fields) => fields?.trim() === "")) {
+      throw new ApiError(400, "Please fill all fields");
+    }
+
+    // Check whether user is already registered or not.
+    const user = await User.findOne({ email }).select("+password");
+    console.log(user);
+
+    // If user is not registered then throw error.
+    if (!user) {
+      throw new ApiError(409, `User with email ${email} does not exists`);
+    }
+
+    // Check whether password is correct or not.
+    const isPasswordCorrect = await user.comparePassword(password);
+
+    // If password is incorrect then throw error.
+    if (!isPasswordCorrect) {
+      throw new ApiError(401, "Invalid credentials");
+    }
+
+    // Create a token for the user
+    sendToken(user, res);
+  }
+);
+
+export { registerUser, loginUser };
