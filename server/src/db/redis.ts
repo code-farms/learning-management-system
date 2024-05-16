@@ -1,26 +1,19 @@
+import dotenv from "dotenv";
 import { Redis } from "ioredis";
+dotenv.config({
+  path: "./.env",
+});
 
 /**
  * Establishes a connection to a Redis server and performs basic operations.
  */
-const redisClient = async () => {
-  try {
-    if (process.env.REDIS_URI) {
-      // Create a new Redis client using the provided Redis URI
-      const client: any = new Redis(`${process.env.REDIS_URI}`);
 
-      // Set a key-value pair in the Redis server
-      client.set("foo", "bar");
-
-      // Retrieve the value of a key from the Redis server
-      const result = await client.get("foo");
-
-      return client;
-    }
-  } catch (error: any) {
-    // Log an error message if the Redis connection fails
-    console.error("Redis connection FAILED ", error);
+const redisClient = () => {
+  if (process.env.REDIS_URI) {
+    console.log("Redis connection established successfully.");
+    return process.env.REDIS_URI;
   }
+  throw new Error("Redis URI is not defined.");
 };
 
-export default redisClient;
+export const redis = new Redis(redisClient());

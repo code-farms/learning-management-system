@@ -9,19 +9,23 @@ cloudinary.config({
 
 /**
  * Uploads a file to Cloudinary.
- *
  * @param {string} localFilePath - The local file path of the file to be uploaded.
  * @returns {Promise<object|null>} - A promise that resolves to the Cloudinary response object if the upload is successful, or null if the upload fails.
  */
 const uploadOnCloudinary = async (localFilePath: string) => {
   try {
+    // Return null if the local file path is not provided
     if (!localFilePath) {
       return null;
     }
+
+    // Upload the file to Cloudinary
     const response = await cloudinary.uploader.upload(localFilePath, {
       resource_type: "auto",
     });
     console.log("File has uploaded successfully");
+
+    // Remove the file from the locally saved file as the upload operation is successful
     fs.unlinkSync(localFilePath);
     return response;
   } catch (error) {
