@@ -3,6 +3,7 @@ import asyncHandler from "../utils/asyncHandler";
 import ApiError from "../utils/apiError";
 import jwt, { JwtPayload } from "jsonwebtoken";
 import { redis } from "../db/redis";
+import { ApiResponse } from "../utils/apiResponse";
 
 // Middleware to check if user is authenticated.
 export const isAuthenticated = asyncHandler(
@@ -48,11 +49,17 @@ export const isAuthenticated = asyncHandler(
 export const isAuthorizedRole =
   (...roles: string[]) =>
   (req: Request, res: Response, next: NextFunction) => {
-    if (!roles.includes(req.user?.role || "")) {
-      throw new ApiError(
-        403,
-        "You are not authorized to access this resource."
-      );
+    try {
+      if (!roles.includes(req.user?.role || "")) {
+        throw new ApiError(
+          403,
+          "You are not authorized to access this resource."
+        );
+      }
+      next();
+    } catch (error: any) {
+      return res
+        .status(error.statusCode)
+        .json(new ApiResponse(error.statusCode, false, error.message, null));
     }
-    next();
   };

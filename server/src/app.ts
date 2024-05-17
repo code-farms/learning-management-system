@@ -4,6 +4,7 @@ import cors from "cors";
 import { ErrorMiddleware } from "./middlewares/errors";
 import userRouter from "./routes/user.route";
 import ApiError from "./utils/apiError";
+import courseRouter from "./routes/course.route";
 
 const app = express();
 
@@ -16,6 +17,7 @@ app.use(ErrorMiddleware);
 
 // Routes
 app.use("/api/v1", userRouter);
+app.use("/api/v1", courseRouter);
 
 app.get("/", (req: Request, res: Response, next: NextFunction) => {
   res.send("Kya hal h bhai!");

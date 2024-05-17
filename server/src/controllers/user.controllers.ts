@@ -460,6 +460,7 @@ const updateProfilePicture = asyncHandler(
 
 export {
   registerUser,
+  createActivationToken,
   loginUser,
   logoutUser,
   updateAccessAndRefreshToken,
